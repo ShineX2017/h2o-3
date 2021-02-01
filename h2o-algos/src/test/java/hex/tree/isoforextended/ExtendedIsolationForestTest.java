@@ -9,7 +9,10 @@ import water.fvec.Frame;
 import water.fvec.TestFrameBuilder;
 import water.fvec.Vec;
 import water.util.FrameUtils;
+import water.util.PrettyPrint;
 
+import java.lang.instrument.Instrumentation;
+import java.lang.ref.WeakReference;
 import java.util.Arrays;
 
 import static org.junit.Assert.*;
@@ -25,6 +28,7 @@ public class ExtendedIsolationForestTest extends TestUtil {
 
     @Test
     public void testBasic() {
+        System.out.println("ExtendedIsolationForestTest.testBasic");
         try {
             Scope.enter();
             Frame train = Scope.track(parse_test_file("smalldata/anomaly/single_blob.csv"));
@@ -34,8 +38,6 @@ public class ExtendedIsolationForestTest extends TestUtil {
             p._seed = 0xDECAF;
             p._ntrees = 100;
             p.extension_level = train.numCols() - 1;
-            
-            DKV.put(train);
 
             ExtendedIsolationForest eif = new ExtendedIsolationForest(p);
             ExtendedIsolationForestModel model = eif.trainModel().get();
@@ -54,6 +56,7 @@ public class ExtendedIsolationForestTest extends TestUtil {
     @Test
     @Ignore("Expensive")
     public void testBasicBigData() {
+        System.out.println("ExtendedIsolationForestTest.testBasicBigData");
         try {
             Scope.enter();
             Frame train = Scope.track(generate_real_only(128, 100_000, 0, 0xCAFFE));
@@ -83,6 +86,7 @@ public class ExtendedIsolationForestTest extends TestUtil {
     @Test
     @Ignore("Expensive")
     public void testBasicBigDataRows() {
+        System.out.println("ExtendedIsolationForestTest.testBasicBigDataRows");
         try {
             Scope.enter();
             Frame train = Scope.track(generate_real_only(2, 65536, 0, 0xCAFFE));
@@ -111,6 +115,7 @@ public class ExtendedIsolationForestTest extends TestUtil {
     @Test
     @Ignore("Expensive")
     public void testBasicBigDataCols() {
+        System.out.println("ExtendedIsolationForestTest.testBasicBigDataCols");
         try {
             Scope.enter();
             Frame train = Scope.track(generate_real_only(128, 500, 0, 0xCAFFE));
@@ -138,7 +143,9 @@ public class ExtendedIsolationForestTest extends TestUtil {
 
     @Test
     public void testBasicWithCategoricalData() {
+        System.out.println("ExtendedIsolationForestTest.testBasicWithCategoricalData");
         try {
+            System.out.println("ExtendedIsolationForestTest.testBasicWithCategoricalData");
             Scope.enter();
             Frame train = new TestFrameBuilder()
                     .withVecTypes(Vec.T_NUM, Vec.T_CAT, Vec.T_CAT, Vec.T_NUM)
@@ -157,15 +164,62 @@ public class ExtendedIsolationForestTest extends TestUtil {
             p._sample_size = 2;
             p.extension_level = train.numCols() - 1;
 
+            System.out.println("Building cat");
             ExtendedIsolationForest eif = new ExtendedIsolationForest(p);
             ExtendedIsolationForestModel model = eif.trainModel().get();
             Scope.track_generic(model);
             assertNotNull(model);
-
+            System.out.println("Building finished cat");
+    
+            System.out.println("Scoring cat");
             Frame out = model.score(train);
             Scope.track_generic(out);
             assertArrayEquals(new String[]{"anomaly_score", "mean_length"}, out.names());
             assertEquals(train.numRows(), out.numRows());
+            System.out.println("Scoring finished cat");
+        } finally {
+            Scope.exit();
+        }
+    }
+
+    /**
+     * String data will be ignored
+     */
+    @Test
+    public void testBasicWithStringData() {
+        System.out.println("ExtendedIsolationForestTest.testBasicWithStringData");
+        try {
+            Scope.enter();
+            Frame train = new TestFrameBuilder()
+                    .withVecTypes(Vec.T_NUM, Vec.T_CAT, Vec.T_STR, Vec.T_NUM)
+                    .withDataForCol(0, ard(0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0))
+                    .withDataForCol(1, ar("B", "C", "D", "E", "B", "C", "D", "E", "A", "B"))
+                    .withDataForCol(2, ar("BB", "CC", "DD", "EEa", "BB", "CC", "DD", "EV", "AW", "BW"))
+                    .withDataForCol(3, ard(0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0))
+                    .build();
+            Scope.track(train);
+
+            ExtendedIsolationForestModel.ExtendedIsolationForestParameters p =
+                    new ExtendedIsolationForestModel.ExtendedIsolationForestParameters();
+            p._train = train._key;
+            p._seed = 0xDECAF;
+            p._ntrees = 100;
+            p._sample_size = 2;
+            p.extension_level = train.numCols() - 1;
+    
+            System.out.println("Building str");
+            ExtendedIsolationForest eif = new ExtendedIsolationForest(p);
+            ExtendedIsolationForestModel model = eif.trainModel().get();
+            Scope.track_generic(model);
+            assertNotNull(model);
+            System.out.println("Building finished str");
+    
+            System.out.println("Scoring");
+            Frame out = model.score(train);
+            Scope.track_generic(out);
+            assertArrayEquals(new String[]{"anomaly_score", "mean_length"}, out.names());
+            assertEquals(train.numRows(), out.numRows());
+            System.out.println("Scoring finished str");
         } finally {
             Scope.exit();
         }
@@ -210,6 +264,7 @@ public class ExtendedIsolationForestTest extends TestUtil {
 
     @Test
     public void testFilterLtTaskCategoricalData() {
+        System.out.println("ExtendedIsolationForestTest.testFilterLtTaskCategoricalData");
         try {
             Scope.enter();
             Frame m = new TestFrameBuilder()
@@ -235,6 +290,7 @@ public class ExtendedIsolationForestTest extends TestUtil {
 
     @Test
     public void testFilterGteTask() {
+        System.out.println("ExtendedIsolationForestTest.testFilterGteTask");
         try {
             Scope.enter();
             Frame m = new TestFrameBuilder()
@@ -260,6 +316,7 @@ public class ExtendedIsolationForestTest extends TestUtil {
 
     @Test
     public void testFilterGteTaskCategoricalData() {
+        System.out.println("ExtendedIsolationForestTest.testFilterGteTaskCategoricalData");
         try {
             Scope.enter();
             Frame m = new TestFrameBuilder()
@@ -284,6 +341,7 @@ public class ExtendedIsolationForestTest extends TestUtil {
 
     @Test
     public void testIsolationTreeSmoke() {
+        System.out.println("ExtendedIsolationForestTest.testIsolationTreeSmoke");
         try {
             Scope.enter();
             Frame train = Scope.track(parse_test_file("smalldata/anomaly/single_blob.csv"));
@@ -312,6 +370,7 @@ public class ExtendedIsolationForestTest extends TestUtil {
 
     @Test
     public void testIsolationTreeLarge() {
+        System.out.println("ExtendedIsolationForestTest.testIsolationTreeLarge");
         try {
             Scope.enter();
             Frame train = Scope.track(generate_real_only(32, 32768, 0, 0xBEEF));
@@ -343,6 +402,7 @@ public class ExtendedIsolationForestTest extends TestUtil {
 
     @Test
     public void testExtendedIsolationTreeSplit() {
+        System.out.println("ExtendedIsolationForestTest.testExtendedIsolationTreeSplit");
         double[][] data = new double[][]{{2.0, 1.0, -1.0}, {5.0, 6.0, -6.0}, {6.0, 0.0, -8.0}};
         double[] p = new double[]{1.0, 4.0, -1.0};
         double[] n = new double[]{-0.25, 0.0, 0.25};

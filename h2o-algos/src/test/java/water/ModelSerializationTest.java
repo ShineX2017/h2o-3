@@ -38,156 +38,156 @@ import static water.TestUtil.parse_test_file;
 @RunWith(H2ORunner.class)
 public class ModelSerializationTest {
 
-  @Test public void testSimpleModel() throws IOException {
-    // Create a model
-    BlahModel.BlahParameters params = new BlahModel.BlahParameters();
-    BlahModel.BlahOutput output = new BlahModel.BlahOutput(false, false, false);
-
-    Model model = new BlahModel(Key.make("BLAHModel"), params, output);
-    DKV.put(model._key, model);
-    // Create a serializer, save a model and reload it
-    Model loadedModel = null;
-    try {
-      loadedModel = saveAndLoad(model);
-      // And compare
-      assertModelBinaryEquals(model, loadedModel);
-    } finally {
-      if (loadedModel != null) loadedModel.delete();
-    }
-  }
-
-  @Test
-  public void testGBMModelMultinomial() throws IOException {
-    GBMModel model, loadedModel = null;
-    try {
-      model = prepareGBMModel("smalldata/iris/iris.csv", "C5");
-      CompressedTree[][] trees = getTrees(model);
-      loadedModel = saveAndLoad(model);
-      // And compare
-      assertModelBinaryEquals(model, loadedModel);
-      CompressedTree[][] loadedTrees = getTrees(loadedModel);
-      assertTreeEquals("Trees have to be binary same", trees, loadedTrees);
-    } finally {
-      if (loadedModel!=null) loadedModel.delete();
-    }
-  }
-
-  @Test
-  public void testGBMModelBinomial() throws IOException {
-    GBMModel model, loadedModel = null;
-    try {
-      GBMModel.GBMParameters gbmParameters = new GBMModel.GBMParameters();
-      gbmParameters._ignored_columns = ar("ID");
-      model = prepareGBMModel("smalldata/logreg/prostate.csv", gbmParameters, "CAPSULE");
-      CompressedTree[][] trees = getTrees(model);
-      loadedModel = saveAndLoad(model);
-      // And compare
-      assertModelBinaryEquals(model, loadedModel);
-      CompressedTree[][] loadedTrees = getTrees(loadedModel);
-      assertTreeEquals("Trees have to be binary same", trees, loadedTrees);
-    } finally {
-      if (loadedModel!=null) loadedModel.delete();
-    }
-  }
-
-  @Test
-  public void testGBMModelBinomialWithCV() throws IOException {
-    GBMModel model, loadedModel = null;
-    final Key<Frame> holdPredsCloneKey = Key.make();
-    try {
-      GBMModel.GBMParameters gbmParameters = new GBMModel.GBMParameters();
-      gbmParameters._ignored_columns = ar("ID");
-      gbmParameters._nfolds = 2;
-      gbmParameters._keep_cross_validation_predictions = true;
-      model = prepareGBMModel("smalldata/logreg/prostate.csv", gbmParameters, "CAPSULE");
-      Frame holdoutPreds = DKV.getGet(model._output._cross_validation_holdout_predictions_frame_id);
-      assertNotNull(holdoutPreds);
-      Frame holdoutPredsClone = holdoutPreds.deepCopy(holdPredsCloneKey.toString());
-      DKV.put(holdoutPredsClone);
-      loadedModel = saveAndLoad(model, ModelExportOption.INCLUDE_CV_PREDICTIONS);
-      // And compare
-      assertModelBinaryEquals(model, loadedModel);
-      // Check that holdout predictions were re-loaded as well
-      Frame holdoutPredsReloaded = DKV.getGet(model._output._cross_validation_holdout_predictions_frame_id);
-      assertNotNull(holdoutPredsReloaded);
-      assertFrameEquals(holdoutPredsClone, holdoutPredsReloaded, 0);
-    } finally {
-      if (loadedModel!=null) 
-        loadedModel.delete();
-      Keyed.remove(holdPredsCloneKey);
-    }
-  }
-
-  @Test
-  public void testGBMModelBinomialWithCV_noExport() throws IOException {
-    GBMModel model, loadedModel = null;
-    try {
-      GBMModel.GBMParameters gbmParameters = new GBMModel.GBMParameters();
-      gbmParameters._ignored_columns = ar("ID");
-      gbmParameters._nfolds = 2;
-      gbmParameters._keep_cross_validation_predictions = true;
-      model = prepareGBMModel("smalldata/logreg/prostate.csv", gbmParameters, "CAPSULE");
-      assertNotNull(DKV.getGet(model._output._cross_validation_holdout_predictions_frame_id));
-      loadedModel = saveAndLoad(model);
-      // And compare
-      assertModelBinaryEquals(model, loadedModel);
-      // Check that holdout predictions were re-loaded as well
-      assertNull(DKV.getGet(model._output._cross_validation_holdout_predictions_frame_id));
-    } finally {
-      if (loadedModel!=null)
-        loadedModel.delete();
-    }
-  }
-
-  @Test
-  public void testDRFModelMultinomial() throws IOException {
-    DRFModel model, loadedModel = null;
-    try {
-      model = prepareDRFModel("smalldata/iris/iris.csv", new String[0], "C5", true, 5);
-      CompressedTree[][] trees = getTrees(model);
-      loadedModel = saveAndLoad(model);
-      // And compare
-      assertModelBinaryEquals(model, loadedModel);
-      CompressedTree[][] loadedTrees = getTrees(loadedModel);
-      assertTreeEquals("Trees have to be binary same", trees, loadedTrees);
-    } finally {
-      if (loadedModel!=null) loadedModel.delete();
-    }
-  }
-
-  @Test
-  public void testDRFModelBinomial() throws IOException {
-    DRFModel model = null, loadedModel = null;
-    try {
-      model = prepareDRFModel("smalldata/logreg/prostate.csv", ar("ID"), "CAPSULE", true, 5);
-      CompressedTree[][] trees = getTrees(model);
-      loadedModel = saveAndLoad(model);
-      // And compare
-      assertModelBinaryEquals(model, loadedModel);
-      CompressedTree[][] loadedTrees = getTrees(loadedModel);
-      assertTreeEquals("Trees have to be binary same", trees, loadedTrees);
-    } finally {
-      if (model!=null) model.delete();
-      if (loadedModel!=null) loadedModel.delete();
-    }
-  }
-
-  @Test
-  public void testIsolationForestModel() throws IOException {
-    IsolationForestModel model = null, loadedModel = null;
-    try {
-      model = prepareIsoForModel("smalldata/logreg/prostate.csv", ar("ID", "CAPSULE"), 5);
-      CompressedTree[][] trees = getTrees(model);
-      loadedModel = saveAndLoad(model);
-      // And compare
-      assertModelBinaryEquals(model, loadedModel);
-      CompressedTree[][] loadedTrees = getTrees(loadedModel);
-      assertTreeEquals("Trees have to be binary same", trees, loadedTrees);
-    } finally {
-      if (model!=null) model.delete();
-      if (loadedModel!=null) loadedModel.delete();
-    }
-  }
+//  @Test public void testSimpleModel() throws IOException {
+//    // Create a model
+//    BlahModel.BlahParameters params = new BlahModel.BlahParameters();
+//    BlahModel.BlahOutput output = new BlahModel.BlahOutput(false, false, false);
+//
+//    Model model = new BlahModel(Key.make("BLAHModel"), params, output);
+//    DKV.put(model._key, model);
+//    // Create a serializer, save a model and reload it
+//    Model loadedModel = null;
+//    try {
+//      loadedModel = saveAndLoad(model);
+//      // And compare
+//      assertModelBinaryEquals(model, loadedModel);
+//    } finally {
+//      if (loadedModel != null) loadedModel.delete();
+//    }
+//  }
+//
+//  @Test
+//  public void testGBMModelMultinomial() throws IOException {
+//    GBMModel model, loadedModel = null;
+//    try {
+//      model = prepareGBMModel("smalldata/iris/iris.csv", "C5");
+//      CompressedTree[][] trees = getTrees(model);
+//      loadedModel = saveAndLoad(model);
+//      // And compare
+//      assertModelBinaryEquals(model, loadedModel);
+//      CompressedTree[][] loadedTrees = getTrees(loadedModel);
+//      assertTreeEquals("Trees have to be binary same", trees, loadedTrees);
+//    } finally {
+//      if (loadedModel!=null) loadedModel.delete();
+//    }
+//  }
+//
+//  @Test
+//  public void testGBMModelBinomial() throws IOException {
+//    GBMModel model, loadedModel = null;
+//    try {
+//      GBMModel.GBMParameters gbmParameters = new GBMModel.GBMParameters();
+//      gbmParameters._ignored_columns = ar("ID");
+//      model = prepareGBMModel("smalldata/logreg/prostate.csv", gbmParameters, "CAPSULE");
+//      CompressedTree[][] trees = getTrees(model);
+//      loadedModel = saveAndLoad(model);
+//      // And compare
+//      assertModelBinaryEquals(model, loadedModel);
+//      CompressedTree[][] loadedTrees = getTrees(loadedModel);
+//      assertTreeEquals("Trees have to be binary same", trees, loadedTrees);
+//    } finally {
+//      if (loadedModel!=null) loadedModel.delete();
+//    }
+//  }
+//
+//  @Test
+//  public void testGBMModelBinomialWithCV() throws IOException {
+//    GBMModel model, loadedModel = null;
+//    final Key<Frame> holdPredsCloneKey = Key.make();
+//    try {
+//      GBMModel.GBMParameters gbmParameters = new GBMModel.GBMParameters();
+//      gbmParameters._ignored_columns = ar("ID");
+//      gbmParameters._nfolds = 2;
+//      gbmParameters._keep_cross_validation_predictions = true;
+//      model = prepareGBMModel("smalldata/logreg/prostate.csv", gbmParameters, "CAPSULE");
+//      Frame holdoutPreds = DKV.getGet(model._output._cross_validation_holdout_predictions_frame_id);
+//      assertNotNull(holdoutPreds);
+//      Frame holdoutPredsClone = holdoutPreds.deepCopy(holdPredsCloneKey.toString());
+//      DKV.put(holdoutPredsClone);
+//      loadedModel = saveAndLoad(model, ModelExportOption.INCLUDE_CV_PREDICTIONS);
+//      // And compare
+//      assertModelBinaryEquals(model, loadedModel);
+//      // Check that holdout predictions were re-loaded as well
+//      Frame holdoutPredsReloaded = DKV.getGet(model._output._cross_validation_holdout_predictions_frame_id);
+//      assertNotNull(holdoutPredsReloaded);
+//      assertFrameEquals(holdoutPredsClone, holdoutPredsReloaded, 0);
+//    } finally {
+//      if (loadedModel!=null)
+//        loadedModel.delete();
+//      Keyed.remove(holdPredsCloneKey);
+//    }
+//  }
+//
+//  @Test
+//  public void testGBMModelBinomialWithCV_noExport() throws IOException {
+//    GBMModel model, loadedModel = null;
+//    try {
+//      GBMModel.GBMParameters gbmParameters = new GBMModel.GBMParameters();
+//      gbmParameters._ignored_columns = ar("ID");
+//      gbmParameters._nfolds = 2;
+//      gbmParameters._keep_cross_validation_predictions = true;
+//      model = prepareGBMModel("smalldata/logreg/prostate.csv", gbmParameters, "CAPSULE");
+//      assertNotNull(DKV.getGet(model._output._cross_validation_holdout_predictions_frame_id));
+//      loadedModel = saveAndLoad(model);
+//      // And compare
+//      assertModelBinaryEquals(model, loadedModel);
+//      // Check that holdout predictions were re-loaded as well
+//      assertNull(DKV.getGet(model._output._cross_validation_holdout_predictions_frame_id));
+//    } finally {
+//      if (loadedModel!=null)
+//        loadedModel.delete();
+//    }
+//  }
+//
+//  @Test
+//  public void testDRFModelMultinomial() throws IOException {
+//    DRFModel model, loadedModel = null;
+//    try {
+//      model = prepareDRFModel("smalldata/iris/iris.csv", new String[0], "C5", true, 5);
+//      CompressedTree[][] trees = getTrees(model);
+//      loadedModel = saveAndLoad(model);
+//      // And compare
+//      assertModelBinaryEquals(model, loadedModel);
+//      CompressedTree[][] loadedTrees = getTrees(loadedModel);
+//      assertTreeEquals("Trees have to be binary same", trees, loadedTrees);
+//    } finally {
+//      if (loadedModel!=null) loadedModel.delete();
+//    }
+//  }
+//
+//  @Test
+//  public void testDRFModelBinomial() throws IOException {
+//    DRFModel model = null, loadedModel = null;
+//    try {
+//      model = prepareDRFModel("smalldata/logreg/prostate.csv", ar("ID"), "CAPSULE", true, 5);
+//      CompressedTree[][] trees = getTrees(model);
+//      loadedModel = saveAndLoad(model);
+//      // And compare
+//      assertModelBinaryEquals(model, loadedModel);
+//      CompressedTree[][] loadedTrees = getTrees(loadedModel);
+//      assertTreeEquals("Trees have to be binary same", trees, loadedTrees);
+//    } finally {
+//      if (model!=null) model.delete();
+//      if (loadedModel!=null) loadedModel.delete();
+//    }
+//  }
+//
+//  @Test
+//  public void testIsolationForestModel() throws IOException {
+//    IsolationForestModel model = null, loadedModel = null;
+//    try {
+//      model = prepareIsoForModel("smalldata/logreg/prostate.csv", ar("ID", "CAPSULE"), 5);
+//      CompressedTree[][] trees = getTrees(model);
+//      loadedModel = saveAndLoad(model);
+//      // And compare
+//      assertModelBinaryEquals(model, loadedModel);
+//      CompressedTree[][] loadedTrees = getTrees(loadedModel);
+//      assertTreeEquals("Trees have to be binary same", trees, loadedTrees);
+//    } finally {
+//      if (model!=null) model.delete();
+//      if (loadedModel!=null) loadedModel.delete();
+//    }
+//  }
 
   @Test
   public void testExtendedIsolationForestModel() throws IOException {
@@ -218,34 +218,34 @@ public class ModelSerializationTest {
     }
   }
   
-  @Test
-  public void testGLMModel() throws IOException {
-    GLMModel model, loadedModel = null;
-    try {
-      model = prepareGLMModel("smalldata/junit/cars.csv", new String[0], "power (hp)", GLMModel.GLMParameters.Family.poisson);
-      loadedModel = saveAndLoad(model);
-      assertModelBinaryEquals(model, loadedModel);
-    } finally {
-      if (loadedModel!=null) loadedModel.delete();
-    }
-  }
-
-  @Test
-  public void testGLRMModel() throws IOException {
-    GLRMModel model, loadedModel = null;
-    try {
-      model = prepareGLRMModel("smalldata/junit/cars.csv", new String[0], "power (hp)");
-      loadedModel = saveAndLoad(model);
-      assertModelBinaryEquals(model, loadedModel);
-      assertNotNull(loadedModel._output._init_key.get());
-      assertNotNull(loadedModel._output._representation_key.get());
-      for (Key<ModelMetrics> mmKey : loadedModel._output.getModelMetrics()) {
-        assertNotNull(mmKey.get());         
-      }
-    } finally {
-      if (loadedModel != null) loadedModel.delete();
-    }
-  }
+//  @Test
+//  public void testGLMModel() throws IOException {
+//    GLMModel model, loadedModel = null;
+//    try {
+//      model = prepareGLMModel("smalldata/junit/cars.csv", new String[0], "power (hp)", GLMModel.GLMParameters.Family.poisson);
+//      loadedModel = saveAndLoad(model);
+//      assertModelBinaryEquals(model, loadedModel);
+//    } finally {
+//      if (loadedModel!=null) loadedModel.delete();
+//    }
+//  }
+//
+//  @Test
+//  public void testGLRMModel() throws IOException {
+//    GLRMModel model, loadedModel = null;
+//    try {
+//      model = prepareGLRMModel("smalldata/junit/cars.csv", new String[0], "power (hp)");
+//      loadedModel = saveAndLoad(model);
+//      assertModelBinaryEquals(model, loadedModel);
+//      assertNotNull(loadedModel._output._init_key.get());
+//      assertNotNull(loadedModel._output._representation_key.get());
+//      for (Key<ModelMetrics> mmKey : loadedModel._output.getModelMetrics()) {
+//        assertNotNull(mmKey.get());
+//      }
+//    } finally {
+//      if (loadedModel != null) loadedModel.delete();
+//    }
+//  }
 
   private GBMModel prepareGBMModel(String dataset, String response) {
     return prepareGBMModel(dataset, new GBMModel.GBMParameters(), response);
