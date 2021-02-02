@@ -21,7 +21,7 @@ def extended_isolation_forest():
     # The output of the EIF algorithm is based on randomly generated values. 
     # If the randomization is changed, then the output can be slightly different and it is fine to update them.
     # The link to source paper: https://arxiv.org/pdf/1811.02141.pdf
-    assert anomaly[0] >= 0.60, \
+    assert anomaly[0] >= 0.59, \
         "Not expected output: Anomaly point should have higher score" + str(anomaly[0])
     assert anomaly[5] <= 0.55, \
         "Not expected output: Anomaly point should have higher score about 0.5 " + str(anomaly[5])

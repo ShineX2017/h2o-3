@@ -16,7 +16,8 @@ import water.util.VecUtils;
 public class IsolationTree extends Iced<IsolationTree> {
     private static final Logger LOG = Logger.getLogger(IsolationTree.class);
 
-    private final Node[] _nodes;
+    private Node[] _nodes;
+    private Node root;
 
     private final double[][] _data;
     private final int _heightLimit;
@@ -30,9 +31,6 @@ public class IsolationTree extends Iced<IsolationTree> {
         this._seed = _seed;
         this._extensionLevel = _extensionLevel;
         this._treeNum = _treeNum;
-
-        int maxNumNodesInTree = (int) Math.pow(2, _heightLimit) - 1;
-        this._nodes = new Node[maxNumNodesInTree];
     }
 
     /**
@@ -41,6 +39,9 @@ public class IsolationTree extends Iced<IsolationTree> {
      * Therefore nodeFrames are removed from DKV after filtering.
      */
     public void buildTree() {
+        int maxNumNodesInTree = (int) Math.pow(2, _heightLimit) - 1;
+        this._nodes = new Node[maxNumNodesInTree];
+        
         _nodes[0] = new Node(_data, _data[0].length, 0);
         for (int i = 0; i < _nodes.length; i++) {
             LOG.trace((i + 1) + " from " + _nodes.length + " is being prepared on tree " + _treeNum);
@@ -131,7 +132,45 @@ public class IsolationTree extends Iced<IsolationTree> {
         score += node._height + averagePathLengthOfUnsuccessfulSearch(node._numRows);
         return score;
     }
-
+    
+    public void buildTreeRecursive() {
+        this.root = buildTreeRecursive(_data, 0, _heightLimit);
+    }
+    
+    private Node buildTreeRecursive(double[][] data, int currentHeight, int heightLimit) {
+        Node node = new Node(data, currentHeight, heightLimit);
+        if (currentHeight >= heightLimit || data[0].length <= 1) {
+            node._external = true;
+            node._numRows = data[0].length;
+        } else {
+            currentHeight++;
+            node._p = VecUtils.uniformDistrFromArray(data, _seed + currentHeight);
+            node._n = ArrayUtils.gaussianVector(data.length, _seed + currentHeight, data.length - _extensionLevel - 1);
+            FilteredData ret = extendedIsolationForestSplit(data, node._p, node._n);
+            node.left = buildTreeRecursive(ret.left, ret.left[0].length, currentHeight);
+            node.right = buildTreeRecursive(ret.right, ret.right[0].length, currentHeight);
+        }
+        return node;
+    }
+    
+    public double computePathLengthRecursive(final double[] row) {
+        return computePathLengthRecursive(row, root);
+    }
+    
+    private double computePathLengthRecursive(final double[] row, Node node) {
+        if (node._external) {
+            return node._height + averagePathLengthOfUnsuccessfulSearch(node._numRows);
+        } else {
+            double[] sub = ArrayUtils.subtract(row, node._p);
+            double mul = ArrayUtils.innerProduct(sub,node._n);
+            if (mul <= 0) {
+                return computePathLengthRecursive(row, node.left);
+            } else {
+                return computePathLengthRecursive(row, node.right);
+            }
+        }
+    }
+    
     /**
      * IsolationTree Node. Naming convention comes from Algorithm 2 (iTree) in paper.
      * _data should be always null after buildTree() method because only number of rows in data is needed for
@@ -157,6 +196,9 @@ public class IsolationTree extends Iced<IsolationTree> {
         private int _height;
         private boolean _external = false;
         private int _numRows;
+        
+        private Node left;
+        private Node right;
 
         public Node(double[][] data, int numRows, int currentHeight) {
             this._data = data;
@@ -206,7 +248,7 @@ public class IsolationTree extends Iced<IsolationTree> {
         double[][] right = new double[data.length][rightLength];
 
         for (int row = 0, rowLeft = 0, rowRight = 0; row < data[0].length; row++) {
-            if (res[row] < 0) {
+            if (res[row] <= 0) {
                 for (int col = 0; col < data.length; col++) {
                     left[col][rowLeft] = data[col][row];
                 }
